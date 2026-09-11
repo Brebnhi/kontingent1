@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kontingent 26/27 — Aalborg Volley</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root{
+    --ground:#F4F6F8; --surface:#FFFFFF; --surface-2:#EDF1F5;
+    --ink:#16202C; --muted:#5B6A7B; --faint:#8595A6;
+    --line:#DCE2E9; --line-strong:#C3CDD8;
+    --accent:#1B4B73; --accent-soft:#D6E3EF;
+    --ochre:#8F6410; --ochre-soft:#F6E9C9;
+    --clay:#9E403C; --clay-soft:#F6E2E0;
+    --green:#28644F; --green-soft:#DBEBE2;
+    --bar:#3C7CA8; --bar-track:#E3E9EF; --knap-tekst:#FFFFFF;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0E141C; --surface:#151E29; --surface-2:#1C2836;
+      --ink:#E4EAF1; --muted:#96A5B6; --faint:#728496;
+      --line:#25323F; --line-strong:#33434F;
+      --accent:#7FB2DA; --accent-soft:#1E3549;
+      --ochre:#DCA842; --ochre-soft:#3A2F16;
+      --clay:#DE8079; --clay-soft:#3B2320;
+      --green:#69B896; --green-soft:#1B3329;
+      --bar:#5A9BC7; --bar-track:#212E3B; --knap-tekst:#0E141C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0E141C; --surface:#151E29; --surface-2:#1C2836;
+    --ink:#E4EAF1; --muted:#96A5B6; --faint:#728496;
+    --line:#25323F; --line-strong:#33434F;
+    --accent:#7FB2DA; --accent-soft:#1E3549;
+    --ochre:#DCA842; --ochre-soft:#3A2F16;
+    --clay:#DE8079; --clay-soft:#3B2320;
+    --green:#69B896; --green-soft:#1B3329;
+    --bar:#5A9BC7; --bar-track:#212E3B; --knap-tekst:#0E141C;
+  }
+
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif; font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;}
+  [hidden]{display:none !important;}
+  .wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:36px 64px;}
+  h1,h2,h3,.ui,button,input,select,label{font-family:Archivo,"Helvetica Neue",Arial,sans-serif;}
+  .num{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;}
+
+  .eyebrow{font-family:Archivo,Arial,sans-serif;font-size:11.5px;font-weight:600;
+    letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin:0 0 10px;}
+  h1{font-size:clamp(29px,5vw,42px);font-weight:700;letter-spacing:-.02em;
+    line-height:1.1;margin:0 0 14px;text-wrap:balance;}
+  .lede{font-size:18px;color:var(--muted);margin:0;max-width:62ch;text-wrap:pretty;}
+  h2{font-size:22px;font-weight:600;letter-spacing:-.01em;
+    margin:50px 0 6px;padding-top:22px;border-top:1px solid var(--line);}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 20px;max-width:68ch;text-wrap:pretty;}
+
+  .drop{margin:30px 0 0;border:1.5px dashed var(--line-strong);border-radius:10px;
+    background:var(--surface);padding:34px 26px;text-align:center;transition:.15s;}
+  .drop.over{border-color:var(--accent);background:var(--accent-soft);}
+  .drop h3{margin:0 0 6px;font-size:18px;font-weight:600;}
+  .drop p{margin:0 auto 18px;color:var(--muted);font-size:14.5px;max-width:54ch;}
+  .knap{font-size:14px;font-weight:600;border:none;border-radius:6px;cursor:pointer;
+    padding:10px 20px;background:var(--accent);color:var(--knap-tekst);}
+  .knap:hover{filter:brightness(1.08);}
+  .knap:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+  .knap.stille{background:var(--surface-2);color:var(--accent);border:1px solid var(--line-strong);}
+  .fejl{color:var(--clay);font-size:14px;margin:14px 0 0;font-family:Archivo,Arial,sans-serif;}
+  .ok{color:var(--green);font-size:13.5px;margin:12px 0 0;font-family:Archivo,Arial,sans-serif;}
+
+  details.hjaelp{margin:22px auto 0;max-width:64ch;text-align:left;}
+  details.hjaelp summary{cursor:pointer;font-family:Archivo,Arial,sans-serif;
+    font-size:13.5px;font-weight:600;color:var(--accent);}
+  details.hjaelp ol{margin:12px 0 0;padding-left:22px;color:var(--muted);font-size:14.5px;}
+  details.hjaelp li{margin-bottom:8px;}
+  code{background:var(--surface-2);border:1px solid var(--line);border-radius:3px;
+    padding:1px 5px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;}
+
+  .figures{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+    background:var(--line);border:1px solid var(--line);
+    margin:30px 0 0;border-radius:8px;overflow:hidden;}
+  .fig{background:var(--surface);padding:18px 17px;}
+  .fig .k{font-family:Archivo,Arial,sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:0 0 7px;}
+  .fig .v{font-size:21px;font-weight:600;letter-spacing:-.01em;line-height:1.15;}
+  .fig .s{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.4;}
+  .fig.god .v{color:var(--green);} .fig.mangler .v{color:var(--ochre);} .fig.fri .v{color:var(--clay);}
+
+  .kilde{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:16px 0 0;
+    font-family:Archivo,Arial,sans-serif;font-size:12.5px;color:var(--faint);}
+  .kilde b{color:var(--muted);font-weight:600;}
+
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;}
+  thead th{font-family:Archivo,Arial,sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+    text-align:right;padding:13px 10px;border-bottom:1px solid var(--line-strong);
+    white-space:nowrap;background:var(--surface-2);}
+  thead th.l{text-align:left;}
+  tbody td{padding:10px;border-bottom:1px solid var(--line);text-align:right;
+    font-size:14px;white-space:nowrap;}
+  tbody td.l{text-align:left;}
+  td.w{white-space:normal;max-width:215px;}
+  tbody tr:last-child td{border-bottom:none;}
+  tfoot td{padding:13px 10px;border-top:2px solid var(--line-strong);text-align:right;
+    font-family:Archivo,Arial,sans-serif;font-weight:600;font-size:14.5px;
+    background:var(--surface-2);white-space:nowrap;}
+  tfoot td.l{text-align:left;}
+  .team{font-family:Archivo,Arial,sans-serif;font-weight:500;font-size:14.5px;}
+  .code{display:inline-block;min-width:46px;margin-right:9px;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+    color:var(--accent);background:var(--accent-soft);
+    padding:2px 6px;border-radius:3px;text-align:center;}
+  .code.ukendt{color:var(--ochre);background:var(--ochre-soft);}
+  .diff.neg{color:var(--clay);} .diff.pos{color:var(--green);} .diff.zero{color:var(--faint);}
+  .fra{font-family:Archivo,Arial,sans-serif;font-size:11.5px;color:var(--muted);}
+
+  .barcell{width:104px;padding-right:14px !important;}
+  .bar{display:block;position:relative;height:9px;background:var(--bar-track);border-radius:2px;}
+  .bar i{position:absolute;inset:0 auto 0 0;background:var(--bar);border-radius:2px;display:block;}
+  .bar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55;border-radius:1px;}
+  .barkey{display:flex;gap:18px;flex-wrap:wrap;align-items:center;
+    font-family:Archivo,Arial,sans-serif;font-size:12px;color:var(--muted);margin-top:12px;}
+  .barkey span{display:inline-flex;align-items:center;gap:7px;}
+  .sw{width:16px;height:9px;border-radius:2px;background:var(--bar);display:inline-block;flex:none;}
+  .sw.tick{width:2px;height:13px;background:var(--ink);opacity:.55;border-radius:1px;flex:none;}
+
+  .pille{display:inline-block;padding:2px 8px;border-radius:10px;
+    font-family:Archivo,Arial,sans-serif;font-size:11.5px;font-weight:600;}
+  .pille.betalt{background:var(--green-soft);color:var(--green);}
+  .pille.mangler{background:var(--ochre-soft);color:var(--ochre);}
+  .pille.fritaget{background:var(--clay-soft);color:var(--clay);}
+  .pille.andet{background:var(--surface-2);color:var(--muted);}
+
+  .vaerktoej{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;}
+  .vaerktoej input[type=search],.vaerktoej select{font-size:13.5px;padding:8px 11px;
+    border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);}
+  .vaerktoej input[type=search]{flex:1 1 200px;min-width:0;}
+  .vaerktoej .tael{margin-left:auto;font-size:12.5px;color:var(--faint);font-family:Archivo,Arial,sans-serif;}
+  .bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    font-family:Archivo,Arial,sans-serif;font-size:12.5px;color:var(--muted);}
+  select.flyt{font-family:Archivo,Arial,sans-serif;font-size:12.5px;padding:4px 7px;
+    border-radius:5px;border:1px solid var(--line-strong);
+    background:var(--surface);color:var(--ink);max-width:200px;}
+  select.flyt.aendret{border-color:var(--accent);background:var(--accent-soft);font-weight:600;}
+  tr.aendret td{background:var(--accent-soft);}
+
+  .call{padding:15px 17px;margin:22px 0 0;border-radius:0 6px 6px 0;
+    border-left:3px solid var(--ochre);background:var(--ochre-soft);}
+  .call .t{font-family:Archivo,Arial,sans-serif;font-weight:600;font-size:12px;
+    letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:6px;color:var(--ochre);}
+  .call p{margin:0;font-size:14.5px;line-height:1.55;}
+  .call p + p{margin-top:8px;}
+  .call ul{margin:9px 0 0;padding-left:20px;font-size:14.5px;}
+  .call li{margin-bottom:4px;}
+  .sim{display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+    background:var(--accent-soft);border-left:3px solid var(--accent);
+    padding:14px 17px;margin:22px 0 0;border-radius:0 6px 6px 0;}
+  .sim .t{font-family:Archivo,Arial,sans-serif;font-weight:600;font-size:14.5px;}
+  .sim .d{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:15px;}
+  .sim .d.op{color:var(--green);} .sim .d.ned{color:var(--clay);}
+  .sim .r{margin-left:auto;}
+
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px;}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px;}
+  .panel h3{font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);margin:0 0 14px;}
+  .rows{display:flex;flex-direction:column;gap:10px;}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;font-size:14.5px;}
+  .row span:first-child{color:var(--muted);}
+  .row .v{font-weight:600;}
+  .row.total{border-top:1px solid var(--line);padding-top:10px;}
+
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--faint);line-height:1.6;}
+  footer b{font-family:Archivo,Arial,sans-serif;font-weight:600;color:var(--muted);}
+
+  @media (max-width:760px){ .figures{grid-template-columns:repeat(2,1fr);} .panels{grid-template-columns:1fr;} }
+  @media (max-width:430px){ .figures{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <p class="eyebrow">Aalborg Volley · sæson 2026/27</p>
+  <h1>Hvad står vi til at få i kontingent?</h1>
+  <p class="lede">Læg en liste fra Holdsport ind, så regner siden. Før opkrævningen er oprettet
+    bruges holdlisterne og satserne; bagefter bruges opkrævningens egne beløb og
+    <em>Fritaget</em>-markeringer. Filen læses i din browser og sendes ikke nogen steder.</p>
+
+  <section id="tom">
+    <div class="drop" id="drop">
+      <h3>Læg eksporten fra Holdsport her</h3>
+      <p>Excel eller CSV. Du kan også lægge en fritagelsesliste ind — den bliver husket i
+        denne browser.</p>
+      <button class="knap" type="button" id="vaelg">Vælg fil</button>
+      <input type="file" id="fil" accept=".xlsx,.xls,.csv" hidden>
+      <p class="fejl" id="fejl" hidden></p>
+      <p class="ok" id="okbesked" hidden></p>
+
+      <details class="hjaelp">
+        <summary>Hvilken eksport skal jeg bruge?</summary>
+        <ol>
+          <li><b>Før opkrævningen er oprettet</b> — medlemslisten: <b>Medlemmer</b> i Holdsport,
+            vælg alle hold, eksportér til Excel. Siden regner satsen gange to rater og trækker
+            5&nbsp;% gebyr og afgang fra, ligesom budgettet gør. Du kan flytte spillere på siden
+            og se, hvad en ændring betyder.</li>
+          <li><b>Når opkrævningen er oprettet</b> — betalingerne:
+            <b>Økonomi → Oprettede betalinger → Mere → Eksportér til Excel</b>.</li>
+          <li><b>Fritagelser (valgfrit)</b> — en CSV med kolonnerne <code>navn</code> og
+            <code>omfang</code> (<code>hel</code>, <code>delvis</code> eller
+            <code>uafklaret</code>). Bruges kun indtil opkrævningen findes; derefter er
+            Holdsports egen markering facit.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <h3>Budget 26/27</h3>
+        <div class="rows">
+          <div class="row"><span>Kontingenter</span><span class="v num">427.120 kr.</span></div>
+          <div class="row"><span>Forudsatte spillere</span><span class="v num">248</span></div>
+          <div class="row"><span>Gebyr og afgang</span><span class="v num">5 %</span></div>
+          <div class="row total"><span>Største post</span><span class="v">Dame 1 — 46.930 kr.</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Sådan regnes budgettet</h3>
+        <div class="rows">
+          <div class="row"><span>Brutto</span><span class="v">2 rater × antal × takst</span></div>
+          <div class="row"><span>Minus</span><span class="v">kompensation × takst</span></div>
+          <div class="row"><span>Minus</span><span class="v">5 % gebyr og afgang</span></div>
+          <div class="row total"><span>Kilde</span><span class="v">Fanen «Kontingent status»</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="data" hidden>
+    <div class="figures">
+      <div class="fig"><p class="k" id="f1-k">Forventet</p><div class="v num" id="f1">—</div><div class="s" id="f1-s"></div></div>
+      <div class="fig god"><p class="k" id="f2-k">Mod budget</p><div class="v num" id="f2">—</div><div class="s" id="f2-s"></div></div>
+      <div class="fig mangler"><p class="k" id="f3-k">Spillere</p><div class="v num" id="f3">—</div><div class="s" id="f3-s"></div></div>
+      <div class="fig fri"><p class="k" id="f4-k">Givet fri</p><div class="v num" id="f4">—</div><div class="s" id="f4-s"></div></div>
+    </div>
+
+    <div class="kilde">
+      <span><b>Kilde:</b> <span id="k-fil">—</span></span>
+      <span><b>Grundlag:</b> <span id="k-tilstand">—</span></span>
+      <span><b>Indlæst:</b> <span id="k-tid">—</span></span>
+      <span><b>Linjer:</b> <span id="k-linjer">—</span></span>
+      <span><b>Fritagelsesliste:</b> <span id="k-fri">ingen</span></span>
+      <button class="knap stille" type="button" id="ny">Ny fil</button>
+    </div>
+
+    <div id="simbanner" hidden></div>
+    <div id="advarsler"></div>
+
+    <h2>Hold for hold</h2>
+    <p class="sub" id="holdsub"></p>
+    <div class="tablecard">
+      <table><thead id="holdhead"></thead><tbody id="holdrows"></tbody><tfoot id="holdfoot"></tfoot></table>
+    </div>
+    <div class="barkey">
+      <span><i class="sw"></i> Forventet</span>
+      <span><i class="sw tick"></i> Budget</span>
+      <span id="skala"></span>
+    </div>
+
+    <h2 id="persontitel">Alle på listerne</h2>
+    <div class="vaerktoej">
+      <input type="search" id="soeg" placeholder="Søg navn eller hold" aria-label="Søg">
+      <select id="filter" aria-label="Filtrér"></select>
+      <span class="bulk" id="bulk" hidden>
+        <label for="bulkhold">Flyt alle viste til</label>
+        <select id="bulkhold" class="flyt"></select>
+      </span>
+      <span class="tael" id="tael"></span>
+    </div>
+    <div class="tablecard">
+      <table><thead id="personhead"></thead><tbody id="personrows"></tbody></table>
+    </div>
+  </section>
+
+  <footer>
+    <b>Sådan regnes der.</b> Fra holdlisterne: satsen gange to rater for hver spiller, hvor en
+    spiller på flere hold kun tælles én gang — til den højeste sats — og hvor 5&nbsp;% trækkes fra
+    til gebyr og afgang, ligesom i budgettet. Fra en opkrævning: summen af Holdsports egne linjer
+    undtagen <em>Fritaget</em> og <em>Refunderet</em>. Holdnavne matches på den indledende del, så
+    «Dame 1 - Liga spiller» og «Dame 1 - Volleyliga» begge lander på Dame 1. Er spilleren både
+    på Mix og et andet hold, betaler hun på det andet hold — mix giver ikke ekstra kontingent.
+    Kun de hold, der står i budgettet, giver indtægt. Satser og budget kommer fra fanen
+    «Kontingent status» i budgetarket.
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
