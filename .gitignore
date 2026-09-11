@@ -1,0 +1,4 @@
+# Fritagelseslisten indeholder navne og hører ikke til i repoet
+fritagelser.csv
+*.xlsx
+*.xls
