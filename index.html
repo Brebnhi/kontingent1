@@ -205,19 +205,33 @@
       <p class="fejl" id="fejl" hidden></p>
       <p class="ok" id="okbesked" hidden></p>
 
+      <details class="hjaelp" id="indsaet">
+        <summary>Ingen eksport-knap? Indsæt tabellen i stedet</summary>
+        <p style="margin:10px 0 8px;color:var(--muted);font-size:14.5px;">
+          Markér tabellen i Holdsport, kopiér, og sæt den ind her — overskriftsrækken skal med.</p>
+        <textarea id="tekst" rows="4" placeholder="Navn	Hold	Betaling	Beløb	Status …"
+          style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:10px;
+                 border-radius:6px;border:1px solid var(--line-strong);
+                 background:var(--surface);color:var(--ink);"></textarea>
+        <button class="knap" type="button" id="laestekst" style="margin-top:10px;">Læs det indsatte</button>
+      </details>
+
       <details class="hjaelp">
         <summary>Hvilken eksport skal jeg bruge?</summary>
         <ol>
-          <li><b>Før opkrævningen er oprettet</b> — medlemslisten: <b>Medlemmer</b> i Holdsport,
-            vælg alle hold, eksportér til Excel. Siden regner satsen gange to rater og trækker
-            5&nbsp;% gebyr og afgang fra, ligesom budgettet gør. Du kan flytte spillere på siden
-            og se, hvad en ændring betyder.</li>
-          <li><b>Når opkrævningen er oprettet</b> — betalingerne:
-            <b>Økonomi → Oprettede betalinger → Mere → Eksportér til Excel</b>.</li>
-          <li><b>Fritagelser (valgfrit)</b> — en CSV med kolonnerne <code>navn</code> og
-            <code>omfang</code> (<code>hel</code>, <code>delvis</code> eller
-            <code>uafklaret</code>). Bruges kun indtil opkrævningen findes; derefter er
-            Holdsports egen markering facit.</li>
+          <li><b>Er kontingentet sat op, men ikke trukket endnu</b> —
+            <b>Økonomi → Fremtidige betalinger</b>. Her står Holdsports egen status pr. medlem:
+            blank betyder at der opkræves, og Fritaget, Frikontingent og Prøveperiode betyder
+            at der ikke gør. Det er den mest retvisende liste før trækket.</li>
+          <li><b>Når trækket er dannet</b> —
+            <b>Økonomi → Oprettede betalinger → Mere → Eksportér til Excel</b>. Så kommer
+            Betalt og Udestående med.</li>
+          <li><b>Er kontingentet slet ikke sat op endnu</b> — medlemslisten:
+            <b>Medlemmer</b>, vælg alle hold, eksportér. Siden regner satsen gange to rater minus
+            5&nbsp;%, og du kan flytte spillere rundt for at se, hvad en ændring betyder.</li>
+          <li><b>Fritagelser (kun hvis du bruger medlemslisten)</b> — en CSV med kolonnerne
+            <code>navn</code> og <code>omfang</code>. Bruger du Fremtidige betalinger, har
+            Holdsport dem allerede, og listen er overflødig.</li>
         </ol>
       </details>
     </div>
@@ -258,6 +272,7 @@
       <span><b>Indlæst:</b> <span id="k-tid">—</span></span>
       <span><b>Linjer:</b> <span id="k-linjer">—</span></span>
       <span><b>Fritagelsesliste:</b> <span id="k-fri">ingen</span></span>
+      <button class="knap stille" type="button" id="ryd" hidden>Ryd fritagelsesliste</button>
       <button class="knap stille" type="button" id="ny">Ny fil</button>
     </div>
 
