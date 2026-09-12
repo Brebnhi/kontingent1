@@ -59,6 +59,9 @@
   // Ungdomsårgangen for sæsonen: født i dette år eller senere hører til ungdomsafdelingen.
   // Ret den, når sæsonen skifter — 26/27 er U17 årgang 2010 og yngre.
   var UNGDOMSAARGANG = 2010;
+  // Yngste årgang der kan være et rigtigt medlem. Står der noget nyere, er fødselsdatoen
+  // forkert i Holdsport — typisk fordi feltet aldrig er udfyldt.
+  function yngsteRimeligeAargang(){ return new Date().getFullYear() - 3; }
   // Er man under 17 og på mere end ét hold, betaler man ungdomsraten.
   var UNGDOMSSATS = 750, UNGDOMSALDER = 17;
   // Mix giver ikke ekstra kontingent for en spiller, der også er på et andet hold.
@@ -112,6 +115,8 @@
   // ------------------------------------------------------------ læsning
   var KOL = {
     navn:["Navn","Fulde navn","Medlem","Medlemsnavn"],
+    fornavn:["Fornavn","First name"],
+    efternavn:["Efternavn","Last name","Surname"],
     hold:["Hold","Holdnavn"],
     afdeling:["Hold/afdeling","Afdeling"],
     betaling:["Betaling","Betalingstype"],
@@ -122,7 +127,7 @@
     rolle:["Rolle"],
     alder:["Alder"],
     foedsel:["Fødselsdag","Fødselsdato","Født","Birthday"],
-    nr:["Medlemsnr","Medlemsnummer","Nr","Id"],
+    nr:["Medlemsnr","Medlemsnummer","Nr","Id","Brugernavn"],
     email:["E-mail","Email","Mail"],
     omfang:["Omfang","Fritagelse"]
   };
@@ -137,6 +142,11 @@
     return ud;
   }
   function celle(row, i){ return i == null ? "" : String(row[i] == null ? "" : row[i]).trim(); }
+  // Klubmedlemmer-eksporten har ikke ét Navn-felt, men Fornavn og Efternavn hver for sig.
+  function navnAf(row, k){
+    if (k.navn != null){ var n = celle(row, k.navn); if (n) return n; }
+    return (celle(row, k.fornavn) + " " + celle(row, k.efternavn)).replace(/\s+/g," ").trim();
+  }
   function tilTal(v){
     if (typeof v === "number") return v;
     var s = String(v == null ? "" : v).replace(/[^\d,.-]/g,"");
@@ -212,11 +222,25 @@
     return m ? tilTal(m[1]) : 0;
   }
 
-  // Hold-kolonnen kan rumme flere hold adskilt af komma, fx
-  // «Dame 3 - 2. Division Træner,Herre 2 - 2. Division Spiller».
+  // Hold-cellen kan rumme flere hold. Opkrævningen adskiller dem med komma
+  // («Dame 3 - 2. Division Træner,Herre 2 - 2. Division Spiller»), mens medlemslisten
+  // skriver den sidste adskillelse som « og » («Dame U15, Dame U17 og Kidsvolley»).
+  // Men et hold kan også selv hedde «Trænerhold og Ungdomstrænere og ungdomsudvalg»,
+  // så der deles kun på « og », hvis delingen giver flere kendte hold end hele strengen.
   function delHold(v){
-    return String(v == null ? "" : v).split(/\s*[,;]\s*|\s\/\s/)
+    var dele = String(v == null ? "" : v).split(/\s*[,;]\s*|\s\/\s/)
       .map(rensHold).filter(function(x){ return x; });
+    var ud = [];
+    dele.forEach(function(t){
+      if (/\sog\s/i.test(t)){
+        var stumper = t.split(/\s+og\s+/i).map(rensHold).filter(function(x){ return x; });
+        var fundne = {};
+        stumper.forEach(function(x){ var o = slaaOp(x); if (o) fundne[o.kode] = 1; });
+        if (Object.keys(fundne).length > (slaaOp(t) ? 1 : 0)){ ud = ud.concat(stumper); return; }
+      }
+      ud.push(t);
+    });
+    return ud;
   }
   var SPILLERROLLE = /(spiller|medlem)\s*$/i;
   // Vælg det hold, linjen hører til: helst det, personen selv spiller på, og
@@ -238,12 +262,16 @@
   function laes(raekker, filnavn){
     var start = -1;
     for (var i = 0; i < Math.min(raekker.length, 25); i++){
-      if (raekker[i] && norm(raekker[i].join(" ")).split(" ").indexOf("navn") !== -1){ start = i; break; }
+      if (!raekker[i]) continue;
+      var ord = norm(raekker[i].join(" ")).split(" ");
+      if (ord.indexOf("navn") !== -1 || ord.indexOf("fornavn") !== -1){ start = i; break; }
     }
-    if (start === -1) throw new Error("Kunne ikke finde en overskriftsrække med en Navn-kolonne.");
+    if (start === -1) throw new Error("Kunne ikke finde en overskriftsrække. Der skal være en "
+      + "kolonne der hedder Navn — eller Fornavn og Efternavn.");
     var k = findKolonner(raekker[start]);
-    if (k.navn == null) throw new Error("Filen mangler kolonnen Navn.");
-    var rows = raekker.slice(start + 1).filter(function(r){ return r && celle(r, k.navn); });
+    if (k.navn == null && k.fornavn == null)
+      throw new Error("Filen mangler kolonnen Navn (eller Fornavn og Efternavn).");
+    var rows = raekker.slice(start + 1).filter(function(r){ return r && navnAf(r, k); });
     if (!rows.length) throw new Error("Der er ingen datarækker i filen.");
 
     // Beløb alene gør det til en opkrævning — Status er ikke længere nødvendig.
@@ -251,16 +279,16 @@
     var harHold = (k.hold != null || k.afdeling != null);
 
     if (!harBetaling && !harHold && k.omfang != null) return {slags:"fritagelser",
-      liste: rows.map(function(r){ return {navn: celle(r,k.navn), omfang: norm(celle(r,k.omfang)) || "hel"}; })};
+      liste: rows.map(function(r){ return {navn: navnAf(r,k), omfang: norm(celle(r,k.omfang)) || "hel"}; })};
     if (!harBetaling && !harHold) return {slags:"fritagelser",
-      liste: rows.map(function(r){ return {navn: celle(r,k.navn), omfang:"hel"}; })};
+      liste: rows.map(function(r){ return {navn: navnAf(r,k), omfang:"hel"}; })};
 
     if (harBetaling){
       var linjer = rows.map(function(r){
         var frist = tilDato(k.frist != null ? r[k.frist] : "");
         var traek = celle(r, k.traek);
         var fd = tilDato(k.foedsel != null ? r[k.foedsel] : "");
-        return {navn:celle(r,k.navn), hold:celle(r,k.hold), afdeling:celle(r,k.afdeling),
+        return {navn:navnAf(r,k), hold:celle(r,k.hold), afdeling:celle(r,k.afdeling),
                 betaling:celle(r,k.betaling), belob:tilTal(r[k.belob]),
                 status:celle(r,k.status), frist:frist, traek:traek,
                 foedt:fd ? +fd.slice(0,4) : 0,
@@ -277,7 +305,7 @@
     }
 
     return {slags:"data", data: samlHold(rows.map(function(r){
-      return {navn:celle(r,k.navn), hold:celle(r,k.hold) || celle(r,k.afdeling),
+      return {navn:navnAf(r,k), hold:celle(r,k.hold) || celle(r,k.afdeling),
               rolle:celle(r,k.rolle),
               alder:alderAf(celle(r,k.alder), k.foedsel != null ? r[k.foedsel] : ""),
               nr:celle(r,k.nr), foedsel:tilDato(k.foedsel != null ? r[k.foedsel] : ""),
@@ -712,9 +740,17 @@
 
       // Juniorer på seniorhold uden et ungdomshold ved siden af. De betaler seniorsats
       // og står uden for ungdomsafdelingen — som regel fordi de er glemt på DU/HU-holdet.
-      var kendteAldre = d.personer.filter(function(p){ return p.foedt; }).length;
+      var kendteAldre = d.personer.filter(function(p){
+        return p.foedt && p.foedt <= yngsteRimeligeAargang(); }).length;
+      var groenb = yngsteRimeligeAargang();
       var juniorer = d.personer.filter(function(p){
-        return p.foedt >= UNGDOMSAARGANG && p.senior && !p.ungdom; });
+        return p.foedt >= UNGDOMSAARGANG && p.foedt <= groenb && p.senior && !p.ungdom; });
+      var skaeve = d.personer.filter(function(p){ return p.foedt && p.foedt > groenb; });
+      if (skaeve.length) ud.push('<div class="call"><span class="t">Tjek fødselsdatoen</span>'
+        + '<p>Fødselsåret kan ikke passe — feltet er formentlig aldrig udfyldt i Holdsport. '
+        + 'De er ikke med i juniortjekket, før datoen er rettet.</p>'
+        + punktliste(skaeve.map(function(p){ return esc(p.n) + " — står som årgang " + p.foedt
+            + ", " + esc(p.h); })) + '</div>');
       var udenAar = d.personer.length - kendteAldre;
       var daekning = udenAar
         ? ' <b>' + udenAar + ' af ' + d.personer.length + '</b> mangler stadig et fødselsår, '
