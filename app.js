@@ -25,12 +25,17 @@
     ["DU 17",                   "DU17",     750, 26,   0,   37050],
     ["HU15/17",                 "HU1517",   750, 11,   1,   14962.5],
     ["Kids",                    "KIDS",     350, 25,   5,   14962.5],
-    ["Ramasjang",               "RAMA",       0,  0,   0,       0]
+    ["Ramasjang",               "RAMA",       0,  0,   0,       0],
+    // Efterskolespillere opkræves 50 kr. pr. rate. Der er ikke budgetteret med dem,
+    // så holdet står uden budget og lægges nederst i tabellen.
+    ["Efterskole",              "EFTER",     50,  0,   0,       0]
   ];
 
   // Holdnavnet i Holdsport matches på sin INDLEDNING, så tilføjelser som
   // «- Liga spiller», «- 2. Division» eller «(Ungdomsstævner)» ikke spænder ben.
   var MOENSTRE = [
+    // Efterskole først, så «Efterskole - DU17» ikke fanges som et ungdomshold.
+    [/^efterskole/,            "EFTER"],
     [/^fort?s(ae)?tter\s*mix/, "FMIX"],
     [/^fors(ae)?tter\s*mix/,   "FMIX"],
     [/^begynder\s*mix/,        "MIX"],
@@ -51,6 +56,9 @@
   ];
 
   var UNGDOM = {DU15:1, DU17:1, HU1517:1, KIDS:1};
+  // Ungdomsårgangen for sæsonen: født i dette år eller senere hører til ungdomsafdelingen.
+  // Ret den, når sæsonen skifter — 26/27 er U17 årgang 2010 og yngre.
+  var UNGDOMSAARGANG = 2010;
   // Er man under 17 og på mere end ét hold, betaler man ungdomsraten.
   var UNGDOMSSATS = 750, UNGDOMSALDER = 17;
   // Mix giver ikke ekstra kontingent for en spiller, der også er på et andet hold.
@@ -251,9 +259,11 @@
       var linjer = rows.map(function(r){
         var frist = tilDato(k.frist != null ? r[k.frist] : "");
         var traek = celle(r, k.traek);
+        var fd = tilDato(k.foedsel != null ? r[k.foedsel] : "");
         return {navn:celle(r,k.navn), hold:celle(r,k.hold), afdeling:celle(r,k.afdeling),
                 betaling:celle(r,k.betaling), belob:tilTal(r[k.belob]),
                 status:celle(r,k.status), frist:frist, traek:traek,
+                foedt:fd ? +fd.slice(0,4) : 0,
                 m:maanedAf(traek || frist, frist),
                 aar:frist ? +frist.slice(0,4) : 0};
       });
@@ -458,7 +468,13 @@
 
       var nk = norm(l.navn);
       var p = folk[nk] || (folk[nk] = {n:l.navn, hold:{}, betalinger:{}, l:0, f:0, be:0, u:0,
-                                       fr:0, pr:0, frikr:0, pr_bet:{}});
+                                       fr:0, pr:0, frikr:0, pr_bet:{}, koder:{}, foedt:0});
+      if (l.foedt && !p.foedt) p.foedt = l.foedt;
+      // Alle personens holdkoder, også dem fra kommaseparerede hold-celler.
+      delHold(l.hold).concat([l.afdeling]).forEach(function(t){
+        var o = slaaOp(t); if (o) p.koder[o.kode] = 1;
+      });
+      if (slag) p.koder[slag.kode] = 1;
       p.l++; p.f += med; p.be += betalt;
       if (med) p.pr_bet[l.betaling] = (p.pr_bet[l.betaling] || 0) + med;
       if (art === "fritaget"){
@@ -486,7 +502,12 @@
 
     var personer = Object.keys(folk).map(function(k){
       var p = folk[k];
+      var koder = Object.keys(p.koder);
       return {n:p.n, nk:k, h:Object.keys(p.hold).join("; "), b:Object.keys(p.betalinger).join("; "),
+              foedt:p.foedt || aarFor(p.n), koder:koder,
+              ungdom:koder.some(function(c){ return UNGDOM[c]; }),
+              senior:koder.some(function(c){ return !UNGDOM[c] && c !== "EFTER" && EFTERKODE[c]
+                                                    && EFTERKODE[c].takst > 0; }),
               l:p.l, f:Math.round(p.f), be:Math.round(p.be), u:Math.round(p.u), fr:p.fr, pr:p.pr,
               frikr:Math.round(p.frikr),
               hoejest:Math.round(Math.max.apply(null, [0].concat(
@@ -525,6 +546,21 @@
             hold:liste, personer:personer};
   }
 
+  // ------------------------------------------------------------ aldre
+  // Opkrævningseksporten har hverken alder eller fødselsdag. Læser man medlemslisten
+  // ind, huskes fødselsårene her, så de kan bruges på en opkrævning bagefter.
+  function gemAldre(raa){
+    var n = 0;
+    (raa || []).forEach(function(p){
+      var aar = 0;
+      if (p.fd && p.fd.length) aar = +String(p.fd[0]).slice(0,4);
+      else if (p.a != null) aar = new Date().getFullYear() - p.a;
+      if (aar > 1900 && aar < 2100){ ALDRE[norm(p.n)] = aar; n++; }
+    });
+    return n;
+  }
+  function aarFor(navn){ return ALDRE[norm(navn)] || 0; }
+
   // ------------------------------------------------------------ lager
   var DB = null, NOEGLE = "aav.kontingent";
   function gemLokalt(n, v){ try { localStorage.setItem(NOEGLE + "." + n, JSON.stringify(v)); } catch (e) {} }
@@ -538,12 +574,14 @@
     gemLokalt("fritagelser", FRITAG);
     gemLokalt("rate", RATE);
     gemLokalt("sort", SORT);
+    gemLokalt("aldre", ALDRE);
   }
 
   // ------------------------------------------------------------ visning
   var GEMT = null, VIST = null, BASIS = null, FRITAG = hentLokalt("fritagelser") || {};
   // Valgt rate (månedsnummer, 0 = hele sæsonen). Siden åbner på den første rate,
   // fordi det er den, der bliver trukket først.
+  var ALDRE = hentLokalt("aldre") || {};
   var RATE = hentLokalt("rate");
   if (RATE == null) RATE = -1;
   // Hvilke hold der står foldet ud. Holdes på navn, så udfoldningen overlever en genberegning.
@@ -630,6 +668,8 @@
     el("k-linjer").textContent = d.linjer;
     var antalFri = Object.keys(FRITAG).length;
     el("k-fri").textContent = antalFri ? antalFri + " navne" : "ingen";
+    var nAldre = Object.keys(ALDRE).length;
+    el("k-aldre").textContent = nAldre ? nAldre + " navne" : "ingen — læs medlemslisten";
     el("ryd").hidden = !antalFri;
 
     el("holdsub").textContent = (erHold
@@ -669,6 +709,37 @@
       if (glemt.length) ud.push('<div class="call"><span class="t">På fritagelseslisten, men ikke fritaget i Holdsport</span>'
         + '<p>Disse ' + glemt.length + ' bliver opkrævet, som filen ser ud nu.</p>'
         + punktliste(glemt.map(esc)) + '</div>');
+
+      // Juniorer på seniorhold uden et ungdomshold ved siden af. De betaler seniorsats
+      // og står uden for ungdomsafdelingen — som regel fordi de er glemt på DU/HU-holdet.
+      var kendteAldre = d.personer.filter(function(p){ return p.foedt; }).length;
+      var juniorer = d.personer.filter(function(p){
+        return p.foedt >= UNGDOMSAARGANG && p.senior && !p.ungdom; });
+      var udenAar = d.personer.length - kendteAldre;
+      var daekning = udenAar
+        ? ' <b>' + udenAar + ' af ' + d.personer.length + '</b> mangler stadig et fødselsår, '
+          + 'så de er ikke tjekket — læs en frisk medlemsliste ind for at få dem med.'
+        : '';
+      if (juniorer.length){
+        var forMeget2 = 0;
+        juniorer.forEach(function(p){
+          forMeget2 += Math.max(0, p.f - UNGDOMSSATS * (d.rate ? 1 : RATER)); });
+        ud.push('<div class="call"><span class="t">Juniorer kun på seniorhold</span>'
+          + '<p>Født ' + UNGDOMSAARGANG + ' eller senere, står på et seniorhold og er ikke '
+          + 'tilknyttet et ungdomshold. De betaler seniorsats'
+          + (forMeget2 ? ' — ' + kr(forMeget2) + ' mere end ungdomsraten ville give' : '')
+          + '. Skal de på DU/HU-holdet, eller er satsen den rigtige?' + daekning + '</p>'
+          + punktliste(juniorer.map(function(p){ return esc(p.n) + " — årgang " + p.foedt + ", "
+              + esc(p.h) + ", " + tal(p.f) + " kr."; })) + '</div>');
+      } else if (kendteAldre) {
+        ud.push('<div class="call rolig"><span class="t">Ingen juniorer alene på seniorhold</span>'
+          + '<p>Alle født ' + UNGDOMSAARGANG + ' eller senere er også på et ungdomshold.'
+          + daekning + '</p></div>');
+      }
+      if (!kendteAldre) ud.push('<div class="call"><span class="t">Ingen fødselsår</span>'
+        + '<p>Opkrævningen indeholder ikke fødselsdato, og der er ikke læst en medlemsliste ind. '
+        + 'Træk <b>Medlemmer → vælg alle hold → eksportér</b> ind én gang — så husker siden '
+        + 'fødselsårene og kan fange juniorer, der kun står på et seniorhold.</p></div>');
 
       var dobbelt = d.personer.filter(function(p){ return p.flere && p.f > 0; });
       if (dobbelt.length){
@@ -820,16 +891,17 @@
              fortegn(d), "facit " + (d < 0 ? "neg" : d > 0 ? "pos" : "")));
   }
 
-  function navneliste(titel, folk, felt, slags) {
+  // Spillerne på holdet som en tabel: hvem, hvor meget, og om de har betalt.
+  function holdtabel(folk, kol){
     if (!folk.length) return "";
-    return '<div class="grp navne"><h4>' + esc(titel) + ' <span class="n">' + folk.length
-      + '</span></h4><div class="chips">'
-      + folk.slice().sort(function(a,b){ return felt(b) - felt(a)
-            || a.n.localeCompare(b.n,"da"); })
-        .map(function(f){
-          return '<span class="chip' + (slags ? " " + slags : "") + '">' + esc(f.n)
-            + '<b>' + tal(felt(f)) + '</b></span>'; }).join("")
-      + '</div></div>';
+    return '<div class="grp navne"><table class="mini"><thead><tr>'
+      + kol.map(function(c){ return '<th class="' + (c.l ? "l" : "num") + '">' + esc(c.t) + '</th>'; }).join("")
+      + '</tr></thead><tbody>'
+      + folk.map(function(f){
+          return '<tr>' + kol.map(function(c){
+            return '<td class="' + (c.l ? "l" : "num") + '">' + c.v(f) + '</td>'; }).join("") + '</tr>';
+        }).join("")
+      + '</tbody></table></div>';
   }
 
   // Selve udfoldningen — regnestykket bag ét hold, i den rækkefølge det regnes.
@@ -853,21 +925,36 @@
           + post("Efter gebyr", h.netto, "facit"))
         + budgetRegnestykke(h.kode, 1)
         + sammenholdt(h.netto, h.budget)
-        + navneliste("På holdet", paa, function(p){ return p.f; });
+        + holdtabel(paa.slice().sort(function(a,b){ return b.f - a.f || a.n.localeCompare(b.n,"da"); }), [
+            {t:"Navn", l:true, v:function(p){ return esc(p.n); }},
+            {t:"Betaler", v:function(p){ return p.f ? tal(p.f) : "—"; }},
+            {t:"Bemærkning", l:true, v:function(p){
+              return p.fri ? '<span class="pille fritaget">Fritaget</span>'
+                : p.nedsat ? '<span class="pille mangler">Ungdomsrate</span>'
+                : '<span class="stille">—</span>'; }}
+          ]);
     }
-    var folk = h.folk || [];
-    var betalende = folk.filter(function(f){ return f.f > 0; });
-    var fri = folk.filter(function(f){ return f.fri > 0; });
-    var mangler = folk.filter(function(f){ return f.u > 0; });
-    var betalt = folk.filter(function(f){ return f.be > 0; });
+
+    var folk = (h.folk || []).slice().sort(function(a,b){
+      return (b.u - a.u) || (b.f - a.f) || (b.fri - a.fri) || a.n.localeCompare(b.n,"da"); });
+    var sendt = VIST.sendt;
+    var kol = [
+      {t:"Navn", l:true, v:function(f){ return esc(f.n); }},
+      {t:"Opkræves", v:function(f){ return f.f ? tal(f.f) : "—"; }}
+    ];
+    if (sendt) kol.push({t:"Betalt", v:function(f){ return f.be ? tal(f.be) : "—"; }});
+    kol.push({t:"Givet fri", v:function(f){ return f.fri ? tal(f.fri) : "—"; }});
+    kol.push({t:"Status", l:true, v:function(f){
+      return f.u > 0 && sendt ? '<span class="pille mangler">Mangler</span>'
+        : f.be > 0 ? '<span class="pille betalt">Betalt</span>'
+        : f.fri > 0 && !f.f ? '<span class="pille fritaget">Fri</span>'
+        : f.fri > 0 ? '<span class="pille fritaget">Delvis fri</span>'
+        : f.f > 0 ? '<span class="pille betalt">Opkræves</span>'
+        : '<span class="pille andet">—</span>'; }});
     return opkraevetRegnestykke(h)
       + budgetRegnestykke(h.kode, VIST.andel || 1)
       + sammenholdt(h.forventet, h.budget)
-      + (VIST.sendt ? navneliste("Mangler betaling", mangler, function(f){ return f.u; }, "advarsel")
-                    : "")
-      + (VIST.sendt ? navneliste("Har betalt", betalt, function(f){ return f.be; })
-                    : navneliste("Bliver opkrævet", betalende, function(f){ return f.f; }))
-      + navneliste("Givet fri", fri, function(f){ return f.fri; });
+      + holdtabel(folk, kol);
   }
 
   function holdKolonner(d, erHold){
@@ -907,12 +994,18 @@
     return k;
   }
 
-  function sorter(liste, kol, id, faldende){
+  // sidst: hold uden budget (Efterskole, umatchede navne) bliver liggende nederst,
+  // uanset hvad der sorteres på — de hører ikke med i sammenligningen mod budgettet.
+  function sorter(liste, kol, id, faldende, sidst){
     var k = null;
     kol.forEach(function(c){ if (c.id === id) k = c; });
     if (!k) return liste;
     var f = k.s || k.v;
     return liste.slice().sort(function(a,b){
+      if (sidst){
+        var sa = sidst(a) ? 1 : 0, sb = sidst(b) ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+      }
       var x = f(a), y = f(b), r;
       if (typeof x === "string" || typeof y === "string") r = String(x).localeCompare(String(y),"da");
       else r = (x || 0) - (y || 0);
@@ -922,7 +1015,8 @@
 
   function visHold(d, erHold){
     var kol = holdKolonner(d, erHold);
-    var liste = sorter(d.hold, kol, SORT.hold.id, SORT.hold.ned);
+    var liste = sorter(d.hold, kol, SORT.hold.id, SORT.hold.ned,
+                       function(h){ return !h.budget; });
     var vis = function(h){ return erHold ? h.netto : h.forventet; };
 
     el("skala").textContent = erHold
@@ -1234,6 +1328,11 @@
           return;
         }
         GEMT = res.data;
+        if (GEMT.tilstand === "hold"){
+          var n = gemAldre(GEMT.raa);
+          if (n){ ok.textContent = "Medlemslisten er læst. " + n + " fødselsår er gemt i denne "
+            + "browser og bliver brugt, næste gang du lægger en opkrævning ind."; ok.hidden = false; }
+        }
         if (RATE === -1 || !(GEMT.rater || []).some(function(r){ return r.h === RATE; }))
           RATE = (GEMT.rater && GEMT.rater[0]) ? GEMT.rater[0].h : 0;
         gem(); genberegn();

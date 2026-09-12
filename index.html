@@ -182,13 +182,20 @@
   .post.facit.neg .pb{color:var(--clay);} .post.facit.pos .pb{color:var(--green);}
   .post.stille .pt,.post.stille .pb{color:var(--faint);}
   .det .navne{grid-column:1/-1;}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;}
-  .chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface);
-    border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:12.5px;}
-  .chip b{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);
-    font-weight:500;font-variant-numeric:tabular-nums;}
-  .chip.advarsel{border-color:var(--clay);background:var(--clay-soft);color:var(--clay);}
-  .chip.advarsel b{color:var(--clay);}
+  table.mini{background:var(--surface);border:1px solid var(--line);border-radius:6px;
+    overflow:hidden;width:100%;}
+  table.mini thead th{font-size:10px;padding:8px 10px;background:var(--surface-2);
+    border-bottom:1px solid var(--line-strong);}
+  /* .det ligger inde i en td, så den ydre tabels regler slår igennem — derfor
+     sættes justering og bredde eksplicit her. */
+  table.mini thead th.num,table.mini tbody td.num{text-align:right;width:1%;white-space:nowrap;}
+  table.mini thead th.l,table.mini tbody td.l{text-align:left;}
+  table.mini tbody td{padding:6px 10px;font-size:13px;border-bottom:1px solid var(--line);}
+  table.mini tbody td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;
+    font-variant-numeric:tabular-nums;}
+  table.mini tbody tr:last-child td{border-bottom:none;}
+  table.mini tbody tr:nth-child(odd) td{background:color-mix(in srgb,var(--surface-2) 45%,transparent);}
+  .stille{color:var(--faint);}
   @media (max-width:560px){
     .det{grid-template-columns:1fr;gap:16px;padding:14px 12px 18px;}
   }
@@ -225,6 +232,9 @@
 
   .call{padding:15px 17px;margin:22px 0 0;border-radius:0 6px 6px 0;
     border-left:3px solid var(--ochre);background:var(--ochre-soft);}
+  /* Kontrol der er gået godt — samme form, men uden alarm. */
+  .call.rolig{border-left-color:var(--green);background:var(--green-soft);}
+  .call.rolig .t{color:var(--green);}
   .call .t{font-family:Archivo,Arial,sans-serif;font-weight:600;font-size:12px;
     letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:6px;color:var(--ochre);}
   .call p{margin:0;font-size:14.5px;line-height:1.55;}
@@ -347,6 +357,7 @@
       <span><b>Indlæst:</b> <span id="k-tid">—</span></span>
       <span><b>Linjer:</b> <span id="k-linjer">—</span></span>
       <span><b>Fritagelsesliste:</b> <span id="k-fri">ingen</span></span>
+      <span><b>Fødselsår:</b> <span id="k-aldre">ingen</span></span>
       <button class="knap stille" type="button" id="ryd" hidden>Ryd fritagelsesliste</button>
       <button class="knap stille" type="button" id="ny">Ny fil</button>
     </div>
@@ -388,6 +399,6 @@
   </footer>
 </div>
 
-<script src="app.js?v=2026-09-12b"></script>
+<script src="app.js?v=2026-09-12c"></script>
 </body>
 </html>
