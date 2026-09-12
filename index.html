@@ -122,6 +122,50 @@
   .diff.neg{color:var(--clay);} .diff.pos{color:var(--green);} .diff.zero{color:var(--faint);}
   .fra{font-family:Archivo,Arial,sans-serif;font-size:11.5px;color:var(--muted);}
 
+  /* ---- klikbar holdrække og udfoldet regnestykke ---- */
+  tr.holdrk{cursor:pointer;}
+  tr.holdrk:hover td{background:var(--surface-2);}
+  tr.holdrk:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+  tr.holdrk.aaben td{background:var(--surface-2);border-bottom-color:transparent;}
+  .pil{display:inline-block;width:11px;margin-right:4px;color:var(--faint);
+    font-size:11px;transition:transform .13s ease;}
+  .pil::before{content:"\25B8";}
+  tr.holdrk.aaben .pil{transform:rotate(90deg);color:var(--accent);}
+  tr.detrk td{padding:0 0 0 0;background:var(--surface-2);border-bottom:1px solid var(--line-strong);
+    white-space:normal;text-align:left;}
+  /* Tabellen kan være bredere end skærmen og scrolle vandret. Udfoldningen klæber
+     til venstre kant og holder sig inden for skærmen, så den kan læses uden at scrolle. */
+  .det{display:grid;gap:18px;padding:16px 18px 20px;box-sizing:border-box;
+    position:sticky;left:0;width:100%;max-width:min(100%, calc(100vw - 42px));
+    grid-template-columns:repeat(auto-fit,minmax(236px,1fr));align-items:start;}
+  .det .grp{min-width:0;}
+  .det h4{font-family:Archivo,Arial,sans-serif;font-size:10.5px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 8px;display:flex;gap:7px;align-items:center;}
+  .det h4 .n{font-family:"IBM Plex Mono",monospace;letter-spacing:0;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:0 5px;}
+  .post{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+    padding:4px 0;font-size:13px;border-bottom:1px dotted var(--line);}
+  .post:last-child{border-bottom:none;}
+  .post .pt{color:var(--muted);min-width:0;}
+  .post .pb{font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+    color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .post.facit{margin-top:2px;border-top:1px solid var(--line-strong);border-bottom:none;
+    padding-top:7px;}
+  .post.facit .pt{color:var(--ink);font-family:Archivo,Arial,sans-serif;font-weight:600;}
+  .post.facit .pb{font-weight:600;}
+  .post.facit.neg .pb{color:var(--clay);} .post.facit.pos .pb{color:var(--green);}
+  .post.stille .pt,.post.stille .pb{color:var(--faint);}
+  .det .navne{grid-column:1/-1;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface);
+    border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:12.5px;}
+  .chip b{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);
+    font-weight:500;font-variant-numeric:tabular-nums;}
+  @media (max-width:560px){
+    .det{grid-template-columns:1fr;gap:16px;padding:14px 12px 18px;}
+  }
+
   .barcell{width:104px;padding-right:14px !important;}
   .bar{display:block;position:relative;height:9px;background:var(--bar-track);border-radius:2px;}
   .bar i{position:absolute;inset:0 auto 0 0;background:var(--bar);border-radius:2px;display:block;}
@@ -317,6 +361,6 @@
   </footer>
 </div>
 
-<script src="app.js?v=2026-09-11b"></script>
+<script src="app.js?v=2026-09-12"></script>
 </body>
 </html>

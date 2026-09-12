@@ -372,7 +372,10 @@
       var h = hold[noegle] || (hold[noegle] = {navn:holdnavn, kode:slag?slag.kode:null,
         takst:slag?slag.takst:0, budget:slag?slag.budget:0,
         forventet:0, betalt:0, fritaget:0, frikr:0, folk:{}, frifolk:{}});
-      h.forventet += med; h.betalt += betalt; h.folk[norm(l.navn)] = 1;
+      h.forventet += med; h.betalt += betalt;
+      var hf = h.folk[norm(l.navn)] || (h.folk[norm(l.navn)] = {n:l.navn, f:0, fri:0, rater:0,
+                                                               bet:l.betaling});
+      hf.f += med; hf.rater++;
 
       var nk = norm(l.navn);
       var p = folk[nk] || (folk[nk] = {n:l.navn, hold:{}, betalinger:{}, l:0, f:0, be:0, u:0,
@@ -387,7 +390,7 @@
                  || sats[l.betaling]
                  || (slag ? slag.takst : 0);
         p.fr++; p.frikr += vaerd; friKr += vaerd;
-        h.fritaget++; h.frikr += vaerd; h.frifolk[nk] = 1;
+        h.fritaget++; h.frikr += vaerd; h.frifolk[nk] = 1; hf.fri += vaerd;
         fri.push({n:l.navn, h:holdnavn, b:vaerd});
       }
       if (art === "proeve"){ p.pr++; proeve.push({n:l.navn, h:holdnavn, b:l.belob}); }
@@ -417,7 +420,10 @@
       return {navn:h.navn, kode:h.kode, takst:h.takst, budget:h.budget,
               forventet:Math.round(h.forventet), betalt:Math.round(h.betalt),
               fritaget:h.fritaget, frikr:Math.round(h.frikr),
-              personer:Object.keys(h.folk).length};
+              personer:Object.keys(h.folk).length,
+              folk:Object.keys(h.folk).map(function(n){ return h.folk[n]; })
+                     .sort(function(a,b){ return b.f - a.f || b.fri - a.fri
+                                              || a.n.localeCompare(b.n,"da"); })};
     }).sort(function(a,b){ return b.forventet - a.forventet; });
 
     var sumF = 0, sumB = 0, sumBud = 0, set = {}, friAntal = 0;
@@ -453,6 +459,8 @@
 
   // ------------------------------------------------------------ visning
   var GEMT = null, VIST = null, BASIS = null, FRITAG = hentLokalt("fritagelser") || {};
+  // Hvilke hold der står foldet ud. Holdes på navn, så udfoldningen overlever en genberegning.
+  var AABNE = {};
 
   function genberegn(){
     if (!GEMT) return;
@@ -512,9 +520,10 @@
     el("k-fri").textContent = antalFri ? antalFri + " navne" : "ingen";
     el("ryd").hidden = !antalFri;
 
-    el("holdsub").textContent = erHold
+    el("holdsub").textContent = (erHold
       ? "Satsen gange to rater for hver spiller, minus 5 % til gebyr og afgang — samme regnestykke som budgettet. En spiller på flere hold tæller kun på det dyreste."
-      : "Beløbene er Holdsports egne. Budgettet dækker hele sæsonen — dækker filen kun én rate, er cirka halvdelen det rigtige at sammenligne med.";
+      : "Beløbene er Holdsports egne og lagt sammen over alle rater, så de dækker hele sæsonen — det samme som budgettet.")
+      + " Klik på et hold for at se regnestykket bag tallet.";
     el("persontitel").textContent = erHold ? "Alle på listerne" : "Alle der opkræves";
 
     visSim(); visAdvarsler(d, erHold); visHold(d, erHold); saetFilter(erHold); visPersoner();
@@ -576,8 +585,10 @@
         + punktliste(uden.map(function(h){ return esc(h.navn) + " (" + h.personer
             + (h.personer === 1 ? " person)" : " personer)"); })) + '</div>');
       if (d.proeve && d.proeve.length) ud.push('<div class="call"><span class="t">Prøveperiode</span>'
-        + '<p>Disse står som prøveperiode og bliver ikke opkrævet i denne omgang. Bliver de '
-        + 'medlemmer, kommer beløbet oveni.</p>'
+        + '<p>De står som prøveperiode på den rate, beløbet her gælder, så den bliver ikke '
+        + 'trukket. Har de en rate mere uden prøveperiode, er den talt med i det forventede. '
+        + 'Bliver de medlemmer, kommer disse ' + kr(d.proeve.reduce(function(a,x){ return a + x.b; }, 0))
+        + ' oveni.</p>'
         + punktliste(d.proeve.map(function(x){ return esc(x.n) + " — " + esc(x.h)
             + (x.b ? ", " + tal(x.b) + " kr." : ""); })) + '</div>');
       if (d.refunderet) ud.push('<div class="call"><span class="t">Refunderet</span><p>'
@@ -636,6 +647,105 @@
     el("advarsler").innerHTML = ud.join("");
   }
 
+
+  // ------------------------------------------------------------ regnestykket bag et hold
+  // En linje i udfoldningen: tekst, beløb, og om den er et facit.
+  function post(t, b, slags){
+    return '<div class="post' + (slags ? " " + slags : "") + '">'
+      + '<span class="pt">' + t + '</span>'
+      + '<span class="pb">' + (b == null ? "" : (typeof b === "string" ? b : tal(b))) + '</span></div>';
+  }
+  function gruppe(titel, indhold){
+    return '<div class="grp"><h4>' + esc(titel) + '</h4>' + indhold + '</div>';
+  }
+
+  // Budgetlinjen, sådan som den står i budgetarket.
+  function budgetRegnestykke(kode){
+    var b = EFTERKODE[kode];
+    if (!b || !b.budget) return "";
+    var brutto = RATER * b.antal * b.takst;
+    var komp = b.komp * b.takst;
+    var foer = brutto - komp;
+    return gruppe("Sådan er holdet budgetteret",
+      post(RATER + " rater × " + b.antal + " spillere × " + tal(b.takst) + " kr.", brutto)
+      + (komp ? post("− " + b.komp + " kompenserede × " + tal(b.takst) + " kr.", "−" + tal(komp)) : "")
+      + (komp ? post("= brutto", foer) : "")
+      + post("− 5 % til gebyr og afgang", "−" + tal(foer * GEBYR))
+      + post("Budget", b.budget, "facit"));
+  }
+
+  // Hvad Holdsport faktisk opkræver på holdet, samlet i beløbsgrupper.
+  function opkraevetRegnestykke(h){
+    var folk = h.folk || [], grupper = {}, fritagne = [];
+    folk.forEach(function(f){
+      if (f.f > 0) grupper[f.f] = (grupper[f.f] || 0) + 1;
+      if (f.fri > 0) fritagne.push(f);
+    });
+    var noegler = Object.keys(grupper).map(Number).sort(function(a,b){ return b - a; });
+    var raekker = noegler.map(function(b){
+      var n = grupper[b];
+      return post(n + (n === 1 ? " person betaler " : " personer betaler ") + tal(b) + " kr.", b * n);
+    }).join("");
+    if (!raekker) raekker = post("Ingen bliver opkrævet på holdet", 0);
+    var friKr = 0; fritagne.forEach(function(f){ friKr += f.fri; });
+    return gruppe("Sådan ser det ud i Holdsport", raekker
+      + post("Forventet", h.forventet, "facit")
+      + (fritagne.length ? post(fritagne.length
+          + (fritagne.length === 1 ? " er givet fri" : " er givet fri")
+          + " — ville have givet", "(" + tal(friKr) + ")", "stille") : ""));
+  }
+
+  function sammenholdt(vis, budget){
+    if (!budget) return "";
+    var d = vis - budget;
+    return gruppe("Mod budgettet",
+      post("Forventet", vis)
+      + post("Budget", budget)
+      + post(d < 0 ? "Mangler" : d > 0 ? "Over budget" : "Præcis på budget",
+             fortegn(d), "facit " + (d < 0 ? "neg" : d > 0 ? "pos" : "")));
+  }
+
+  function navneliste(titel, folk, felt) {
+    if (!folk.length) return "";
+    return '<div class="grp navne"><h4>' + esc(titel) + ' <span class="n">' + folk.length
+      + '</span></h4><div class="chips">'
+      + folk.map(function(f){
+          return '<span class="chip">' + esc(f.n)
+            + '<b>' + tal(felt(f)) + '</b></span>'; }).join("")
+      + '</div></div>';
+  }
+
+  // Selve udfoldningen — regnestykket bag ét hold, i den rækkefølge det regnes.
+  function holdDetalje(h, erHold){
+    if (erHold){
+      var paa = VIST.personer.filter(function(p){ return p.kode === h.kode; });
+      var betaler = paa.filter(function(p){ return p.f > 0; });
+      var fritagne = paa.filter(function(p){ return p.fri; });
+      var grupper = {};
+      betaler.forEach(function(p){ grupper[p.f] = (grupper[p.f] || 0) + 1; });
+      var raekker = Object.keys(grupper).map(Number).sort(function(a,b){ return b - a; })
+        .map(function(b){ var n = grupper[b];
+          return post(n + (n === 1 ? " spiller × " : " spillere × ") + tal(b)
+            + " kr. (" + tal(b/RATER) + " × " + RATER + " rater)", b * n); }).join("");
+      if (!raekker) raekker = post("Ingen spillere på holdet", 0);
+      var egen = gruppe("Sådan ligger holdet nu",
+        raekker
+        + (fritagne.length ? post(fritagne.length + " fritaget", "−" + tal(
+            fritagne.reduce(function(a,p){ return a + (p.fuld - p.f); }, 0))) : "")
+        + post("Brutto", h.forventet, "facit")
+        + post("− 5 % til gebyr og afgang", "−" + tal(h.forventet * GEBYR))
+        + post("Efter gebyr", h.netto, "facit"));
+      return egen + budgetRegnestykke(h.kode) + sammenholdt(h.netto, h.budget)
+        + navneliste("På holdet", paa, function(p){ return p.f; });
+    }
+    var fritagneF = (h.folk || []).filter(function(f){ return f.fri > 0; });
+    var betalende = (h.folk || []).filter(function(f){ return f.f > 0; });
+    return opkraevetRegnestykke(h) + budgetRegnestykke(h.kode)
+      + sammenholdt(h.forventet, h.budget)
+      + navneliste("Bliver opkrævet", betalende, function(f){ return f.f; })
+      + navneliste("Givet fri", fritagneF, function(f){ return f.fri; });
+  }
+
   function visHold(d, erHold){
     var skala = 0;
     d.hold.forEach(function(h){ skala = Math.max(skala, erHold ? h.netto : h.forventet, h.budget); });
@@ -656,7 +766,11 @@
       var vis = erHold ? h.netto : h.forventet;
       var diff = h.budget ? vis - h.budget : 0;
       var kl = h.budget ? " diff " + (diff < 0 ? "neg" : diff > 0 ? "pos" : "zero") : "";
-      var s = '<tr><td class="l"><span class="code' + (h.kode ? '' : ' ukendt') + '">'
+      var aaben = AABNE[h.navn] ? ' aaben' : '';
+      var s = '<tr class="holdrk' + aaben + '" data-hold="' + esc(h.navn) + '" tabindex="0" '
+        + 'role="button" aria-expanded="' + (aaben ? 'true' : 'false') + '">'
+        + '<td class="l"><span class="pil" aria-hidden="true"></span>'
+        + '<span class="code' + (h.kode ? '' : ' ukendt') + '">'
         + esc(h.kode || "?") + '</span><span class="team">' + esc(h.navn) + '</span></td>'
         + '<td class="num">' + h.personer + '</td>'
         + '<td class="num">' + (h.fritaget || "—") + '</td>'
@@ -677,7 +791,10 @@
             : '<td class="num">' + (h.frikr ? tal(h.frikr) : "—") + '</td>'
               + '<td class="num">' + (h.budget ? tal(h.budget) : "—") + '</td>'
               + '<td class="num' + kl + '">' + (h.budget ? fortegn(diff) : "—") + '</td>')
-          + '</tr>');
+          + '</tr>')
+        + (AABNE[h.navn]
+            ? '<tr class="detrk"><td colspan="8"><div class="det">'
+              + holdDetalje(h, erHold) + '</div></td></tr>' : '');
     }).join("");
 
     el("holdfoot").innerHTML = erHold
@@ -749,6 +866,28 @@
       if (f === "udest") return p.u > 0;
       if (f === "betalt") return p.be > 0 && p.u === 0;
       return true;
+    });
+  }
+
+  function bindHold(){
+    var krop = el("holdrows");
+    function skift(rk){
+      var navn = rk.getAttribute("data-hold");
+      if (!navn) return;
+      if (AABNE[navn]) delete AABNE[navn]; else AABNE[navn] = 1;
+      visHold(VIST, VIST.tilstand === "hold");
+      var igen = krop.querySelector('[data-hold="' + navn.replace(/"/g,'\\"') + '"]');
+      if (igen) igen.focus();
+    }
+    krop.addEventListener("click", function(e){
+      var rk = e.target.closest ? e.target.closest("tr.holdrk") : null;
+      if (rk) skift(rk);
+    });
+    krop.addEventListener("keydown", function(e){
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var rk = e.target.closest ? e.target.closest("tr.holdrk") : null;
+      if (!rk) return;
+      e.preventDefault(); skift(rk);
     });
   }
 
@@ -866,6 +1005,7 @@
   }
 
   function brugResultat(res){
+    AABNE = {};
     var fejl = el("fejl"), ok = el("okbesked");
     fejl.hidden = true; ok.hidden = true;
     try {
@@ -909,6 +1049,7 @@
   });
   el("soeg").addEventListener("input", visPersoner);
   el("filter").addEventListener("change", visPersoner);
+  bindHold();
 
   var drop = el("drop");
   ["dragenter","dragover"].forEach(function(t){
