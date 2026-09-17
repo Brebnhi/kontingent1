@@ -197,6 +197,22 @@ lægges i den halvsæson, de falder i, så en enkelt aprilbetaling ikke bliver t
 Vælger du én rate, er budgettet **halvdelen** af sæsonbudgettet, fordi der opkræves to gange.
 Valget huskes i din browser.
 
+## Hvad der lander på kontoen
+
+Holdsport tager **1 % af beløbet** i transaktionsgebyr på kort og MobilePay. Det betales af
+klubben og kan ikke lægges over på medlemmet, så det er forskellen mellem det, der opkræves, og
+det, der står på kontoudtoget. Administrationshonoraret (3/5/9/15 kr. pr. transaktion) ligger på
+medlemmet og rører ikke klubbens beløb.
+
+Derfor har holdtabellen to kolonner: **Opkrævet** er det, Holdsport trækker, og **På kontoen**
+er det minus de 1 %. Nøgletallet øverst og sammenligningen mod budgettet bruger *På kontoen* —
+det er de penge, klubben rent faktisk kan bruge.
+
+Bemærk at budgettets egne 5 % dækker **både** gebyr og frafald, så de 1 % er en del af den ramme,
+ikke et fradrag oveni.
+
+Satsen står i `app.js` som `KORTGEBYR`.
+
 ## Sortering
 
 Klik på en kolonneoverskrift for at sortere — både holdtabellen og personlisten. Klik igen for

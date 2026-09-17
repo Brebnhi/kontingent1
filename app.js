@@ -7,6 +7,11 @@
   // Kilde: fanen «Kontingent status» i budgetarket Overblik.
   // budget = (2 rater × antal × takst − komp × takst) × 0,95
   var GEBYR = 0.05, RATER = 2, BUDGET_IALT = 427120;
+  // Holdsports transaktionsgebyr på kort og MobilePay: 1 % af beløbet. Det betales af
+  // klubben og kan ikke lægges over på medlemmet, så det er forskellen mellem det,
+  // der opkræves, og det, der lander på kontoen. Administrationshonoraret
+  // (3/5/9/15 kr. pr. transaktion) ligger på medlemmet og rører ikke klubbens beløb.
+  var KORTGEBYR = 0.01;
   var HOLD = [
     // navn                     kode      takst antal komp  budget
     ["Dame 1",                  "D1",      1900, 14,   2,   46930],
@@ -547,6 +552,7 @@
       var h = hold[k];
       return {navn:h.navn, kode:h.kode, takst:h.takst, budget:h.budget,
               forventet:Math.round(h.forventet), betalt:Math.round(h.betalt),
+              paakonto:Math.round(h.forventet * (1 - KORTGEBYR)),
               fritaget:h.fritaget, frikr:Math.round(h.frikr),
               personer:Object.keys(h.folk).length,
               folk:Object.keys(h.folk).map(function(n){ return h.folk[n]; })
@@ -565,6 +571,8 @@
             linjer:linjer.length, frister:Object.keys(frister).sort(),
             rater:rater, rate:valgt, andel:andel,
             forventet:Math.round(sumF), betalt:Math.round(sumB),
+            gebyr:Math.round(sumF * KORTGEBYR),
+            paakonto:Math.round(sumF * (1 - KORTGEBYR)),
             udestaaende:Math.round(sumF - sumB),
             budget:Math.round(BUDGET_IALT * andel), budget_ramt:sumBud,
             refunderet:Math.round(refunderet), fritaget_kr:Math.round(friKr),
@@ -665,14 +673,12 @@
       saetFig("f4","Givet fri", kr(d.fritaget_kr),
         d.fritaget_personer + " på fritagelseslisten");
     } else {
-      var betalere = d.personer.filter(function(p){ return p.f > 0; }).length;
       var hvad = d.rate ? d.rate.n + ". rate" : "Hele sæsonen";
-      saetFig("f1", hvad, kr(d.forventet),
-        betalere + " betaler" + (d.rate && d.rate.datoer.length
-          ? " · trækkes " + d.rate.datoer.join(" og ").replace(/\s*\/\s*/g, "/") : ""));
-      var mod = d.forventet - d.budget;
+      saetFig("f1","På kontoen", kr(d.paakonto),
+        hvad + " · opkrævet " + kr(d.forventet) + " minus " + tal(d.gebyr) + " i gebyr");
+      var mod = d.paakonto - d.budget;
       saetFig("f2","Mod budget", fortegn(mod) + " kr.",
-        kr(d.budget) + " · " + pct(d.forventet, d.budget));
+        kr(d.budget) + " · " + pct(d.paakonto, d.budget));
       el("f2").parentNode.className = "fig " + (mod < 0 ? "fri" : "god");
       if (d.sendt){
         saetFig("f3","Mangler betaling", kr(d.udestaaende),
@@ -680,8 +686,10 @@
           + pct(d.betalt, d.forventet) + " betalt");
         el("f3").parentNode.className = "fig " + (d.udestaaende ? "mangler" : "god");
       } else {
+        var betalere = d.personer.filter(function(p){ return p.f > 0; }).length;
         saetFig("f3","Ikke trukket endnu", kr(d.forventet),
-          d.frister.length ? "Frist " + d.frister.join(" og ") : d.linjer + " linjer");
+          betalere + " betaler" + (d.rate && d.rate.datoer.length
+            ? " · trækkes " + d.rate.datoer.join(" og ").replace(/\s*\/\s*/g, "/") : ""));
         el("f3").parentNode.className = "fig mangler";
       }
       saetFig("f4","Givet fri", kr(d.fritaget_kr),
@@ -702,10 +710,14 @@
 
     el("holdsub").textContent = (erHold
       ? "Satsen gange to rater for hver spiller, minus 5 % til gebyr og afgang — samme regnestykke som budgettet. En spiller på flere hold tæller kun på det dyreste."
-      : d.rate
-        ? "Kun " + d.rate.n + ". rate (" + d.rate.kort + "). Budgettet er halvdelen af sæsonens, "
-          + "fordi der opkræves to gange."
-        : "Begge rater lagt sammen — det samme som budgettet dækker.")
+      : (d.rate
+          ? "Kun " + d.rate.n + ". rate (" + d.rate.kort + "). Budgettet er halvdelen af sæsonens, "
+            + "fordi der opkræves to gange. "
+          : "Begge rater lagt sammen — det samme som budgettet dækker. ")
+        + "«På kontoen» er alt det opkrævede minus Holdsports transaktionsgebyr på "
+        + Math.round(KORTGEBYR * 100) + " % — altså hvad der ender på kontoen, når alle har "
+        + "betalt. Det er den kolonne, budgettet holdes op mod"
+        + (d.sendt ? "; Betalt og Mangler viser, hvor langt indbetalingerne er nået." : "."))
       + " Klik på en kolonne for at sortere, og på et hold for at se regnestykket bag tallet.";
     el("persontitel").textContent = erHold ? "Alle på listerne" : "Alle der opkræves";
 
@@ -911,17 +923,19 @@
     if (!raekker) raekker = post("Ingen bliver opkrævet på holdet", 0);
     var friKr = 0; fritagne.forEach(function(f){ friKr += f.fri; });
     return gruppe("Sådan ser det ud i Holdsport", raekker
-      + post("Forventet", h.forventet, "facit")
-      + (fritagne.length ? post(fritagne.length
-          + (fritagne.length === 1 ? " er givet fri" : " er givet fri")
-          + " — ville have givet", "(" + tal(friKr) + ")", "stille") : ""));
+      + post("Opkrævet", h.forventet)
+      + post("− " + Math.round(KORTGEBYR * 100) + " % i transaktionsgebyr",
+             "−" + tal(h.forventet * KORTGEBYR))
+      + post("På kontoen", h.paakonto, "facit")
+      + (fritagne.length ? post(fritagne.length + " er givet fri — ville have givet",
+             "(" + tal(friKr) + ")", "stille") : ""));
   }
 
-  function sammenholdt(vis, budget){
+  function sammenholdt(vis, budget, navn){
     if (!budget) return "";
     var d = vis - budget;
     return gruppe("Mod budgettet",
-      post("Forventet", vis)
+      post(navn || "Forventet", vis)
       + post("Budget", budget)
       + post(d < 0 ? "Mangler" : d > 0 ? "Over budget" : "Præcis på budget",
              fortegn(d), "facit " + (d < 0 ? "neg" : d > 0 ? "pos" : "")));
@@ -989,7 +1003,7 @@
         : '<span class="pille andet">—</span>'; }});
     return opkraevetRegnestykke(h)
       + budgetRegnestykke(h.kode, VIST.andel || 1)
-      + sammenholdt(h.forventet, h.budget)
+      + sammenholdt(h.paakonto, h.budget, "På kontoen")
       + holdtabel(folk, kol);
   }
 
@@ -1007,20 +1021,19 @@
       k.push({id:"netto", t:"Efter 5 %", v:function(h){ return tal(h.netto); },
               s:function(h){ return h.netto; }, num:true, diff:true});
     } else {
-      k.push({id:"forventet", t:"Forventet", v:function(h){ return tal(h.forventet); },
-              s:function(h){ return h.forventet; }, num:true, diff:true});
+      k.push({id:"forventet", t:"Opkrævet", v:function(h){ return tal(h.forventet); },
+              s:function(h){ return h.forventet; }, num:true});
+      k.push({id:"paakonto", t:"På kontoen", v:function(h){ return tal(h.paakonto); },
+              s:function(h){ return h.paakonto; }, num:true, diff:true});
       if (d.sendt){
         k.push({id:"betalt", t:"Betalt", v:function(h){ return tal(h.betalt); },
                 s:function(h){ return h.betalt; }, num:true});
         k.push({id:"mangler", t:"Mangler", v:function(h){
                   return h.forventet - h.betalt ? tal(h.forventet - h.betalt) : "—"; },
                 s:function(h){ return h.forventet - h.betalt; }, num:true});
-      } else {
-        k.push({id:"frikr", t:"Givet fri", v:function(h){ return h.frikr ? tal(h.frikr) : "—"; },
-                s:function(h){ return h.frikr || 0; }, num:true});
       }
     }
-    var vis = function(h){ return erHold ? h.netto : h.forventet; };
+    var vis = function(h){ return erHold ? h.netto : h.paakonto; };
     k.push({id:"budget", t:"Budget", v:function(h){ return h.budget ? tal(h.budget) : "—"; },
             s:function(h){ return h.budget || 0; }, num:true});
     k.push({id:"forskel", t:"Forskel", v:function(h){ return h.budget ? fortegn(vis(h) - h.budget) : "—"; },
@@ -1094,10 +1107,13 @@
       if (c.id === "forventet") return '<td class="num">' + tal(d.forventet) + '</td>';
       if (c.id === "betalt") return '<td class="num">' + tal(d.betalt) + '</td>';
       if (c.id === "mangler") return '<td class="num">' + tal(d.udestaaende) + '</td>';
+      if (c.id === "paakonto") return '<td class="num">' + tal(d.paakonto) + '</td>';
       if (c.id === "frikr") return '<td class="num">' + tal(d.fritaget_kr) + '</td>';
       if (c.id === "budget") return '<td class="num">' + tal(d.budget) + '</td>';
-      if (c.id === "forskel") return '<td class="num">' + fortegn(d.forventet - d.budget) + '</td>';
-      if (c.id === "indeks") return '<td class="pct">' + pct(d.forventet, d.budget) + '</td>';
+      if (c.id === "forskel") return '<td class="num">'
+        + fortegn((erHold ? d.forventet : d.paakonto) - d.budget) + '</td>';
+      if (c.id === "indeks") return '<td class="pct">'
+        + pct(erHold ? d.forventet : d.paakonto, d.budget) + '</td>';
       return '<td></td>';
     }).join("") + '</tr>';
   }
